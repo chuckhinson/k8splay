@@ -224,3 +224,37 @@ resource "aws_instance" "workers" {
     Name = "worker-${count.index}"
   }
 }
+
+resource "aws_lb" "k8splay-api" {
+  name               = "k8splay-api"
+  internal           = false
+  load_balancer_type = "network"
+  subnets            = [aws_subnet.node-subnet.id]
+}
+
+resource "aws_lb_target_group" "k8splay-api" {
+  name        = "k8splay-api"
+  port        = 6443
+  protocol    = "TCP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.k8splay-vpc.id
+}
+
+resource "aws_lb_target_group_attachment" "k8splay-api" {
+  count = length(aws_instance.controllers[*].private_ip)
+
+  target_group_arn = aws_lb_target_group.k8splay-api.arn
+  target_id        = aws_instance.controllers[count.index].private_ip
+  port             = 6443
+}
+
+resource "aws_lb_listener" "k8splay-api" {
+  load_balancer_arn = aws_lb.k8splay-api.arn
+  port              = "443"
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.k8splay-api.arn
+  }
+}
