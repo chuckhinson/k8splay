@@ -19,18 +19,24 @@ provider "aws" {
 
 variable "node_vpc_cidr_block" {
   default = "10.2.0.0/16"
-}
-variable "node_subnet_cidr_block" {
-  default = "10.2.1.0/24"
+  description = "This is the CIDR block for the VPC where the cluster will live"
 }
 variable "cluster_cidr_block" {
   default = "10.200.0.0/16"
+  description = "The CIDR block to be used for Cluster IP addresses"
 }
 variable "service_cidr_block" {
   default = "10.32.0.0/24"
+  description = "The CIDR block to be used for Service Virtual IP addresses"
 }
 
-variable "mgmt_server_cidr_block" {}
+variable "mgmt_server_cidr_block" {
+  description = "The IP address of the (remote) server that is allowed to access the nodes (as a /32 CIDR block)"
+}
+
+locals {
+  node_subnet_cidr_block = cidrsubnet(var.node_vpc_cidr_block,8,1)
+}
 
 resource "aws_vpc" "k8splay-vpc" {
   cidr_block = var.node_vpc_cidr_block
@@ -43,11 +49,14 @@ resource "aws_vpc" "k8splay-vpc" {
 
 resource "aws_internet_gateway" "k8splay-gw" {
   vpc_id = aws_vpc.k8splay-vpc.id
+  tags = {
+    Name = "k8splay"
+  }
 }
 
 resource "aws_subnet" "node-subnet" {
   vpc_id = aws_vpc.k8splay-vpc.id
-  cidr_block = var.node_subnet_cidr_block
+  cidr_block = local.node_subnet_cidr_block
   tags = {
     Name = "node subnet"
   }
@@ -71,8 +80,8 @@ resource "aws_route_table_association" "a" {
   route_table_id = aws_route_table.node-routes.id
 }
 
-resource "aws_security_group" "k8splaysg" {
-  name        = "k8splaysg"
+resource "aws_security_group" "k8splay-internal" {
+  name        = "k8splay-internal"
   description = "Allow cluster inbound traffic"
   vpc_id      = aws_vpc.k8splay-vpc.id
 
@@ -90,6 +99,27 @@ resource "aws_security_group" "k8splaysg" {
     to_port          = 0
     cidr_blocks      = [var.cluster_cidr_block]
   }
+
+  # AWS normally provides a default egress rule, but terraform
+  # deletes it by default, so we need to add it here to keep it
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  tags = {
+    Name = "k8splay-internal"
+  }
+}
+
+resource "aws_security_group" "k8splay-remote" {
+  name        = "k8splay-remote"
+  description = "Allow remote access to cluster"
+  vpc_id      = aws_vpc.k8splay-vpc.id
+
   ingress {
     description      = "ssh from mgmt server"
     protocol         = "tcp"
@@ -119,18 +149,8 @@ resource "aws_security_group" "k8splaysg" {
     cidr_blocks      = [var.mgmt_server_cidr_block]
   }
 
-  # AWS normally provides a default egress rule, but terraform
-  # deletes it by default, so we need to add it here to keep it
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-
   tags = {
-    Name = "k8splaysg"
+    Name = "k8splay-remote"
   }
 }
 
@@ -173,11 +193,11 @@ resource "aws_instance" "workers" {
   }
   instance_type = "t3.micro"
   key_name = "k8splay"
-  private_ip = "10.2.1.2${count.index}"
+  private_ip =  cidrhost(local.node_subnet_cidr_block,20+count.index)
   source_dest_check = false
   subnet_id = aws_subnet.node-subnet.id
   user_data = "name=worker-${count.index}|pod-cidr=10.200.${count.index}.0/24"
-  vpc_security_group_ids = [aws_security_group.k8splaysg.id]
+  vpc_security_group_ids = [aws_security_group.k8splay-internal.id, aws_security_group.k8splay-remote.id]
 
   tags = {
     Name = "worker-${count.index}"
