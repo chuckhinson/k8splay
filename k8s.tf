@@ -181,6 +181,27 @@ data "aws_ami" "ubuntu_jammy" {
   owners = ["099720109477"]  # amazon
 }
 
+resource "aws_instance" "controllers" {
+  count = 3
+
+  ami           = data.aws_ami.ubuntu_jammy.id
+  associate_public_ip_address = true
+  ebs_block_device {
+    device_name = "/dev/sda1"
+    volume_size = "50"
+  }
+  instance_type = "t3.micro"
+  key_name = "k8splay"
+  private_ip =  cidrhost(local.node_subnet_cidr_block,10+count.index)
+  source_dest_check = false
+  subnet_id = aws_subnet.node-subnet.id
+  user_data = "name=controller-${count.index}"
+  vpc_security_group_ids = [aws_security_group.k8splay-internal.id, aws_security_group.k8splay-remote.id]
+
+  tags = {
+    Name = "controller-${count.index}"
+  }
+}
 
 resource "aws_instance" "workers" {
   count = 3
