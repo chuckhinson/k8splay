@@ -2,6 +2,16 @@
 
 set -euo pipefail
 
+# Script to setup various files that will be needed to deploy k8s controllers and
+# workers.  A bit chunk of this is the various certificates, but also include 
+# some kubeconfigs and encryption config.  This script will also upload all of the
+# files to the appropriate controllers and workers.
+#
+# Run this script after you've deployed your infrastructure with terraform
+# Once this script has been run, you're ready to start with the Bootstrapping
+# the etcd Cluster lab
+
+
 function main () {
 
     generate_ca_cert

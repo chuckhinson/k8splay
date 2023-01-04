@@ -1,3 +1,24 @@
+#
+# Terraform for deploying the compute and network resources needed for the
+# Kubernetes the hard way - aws version. Note that this is mostly a translation
+# from the aws cli commands found in the Provisioning Compute Resources lab.
+# There are some differences because there are not direct mappings for all of the
+# commands.  Note that while there is a separate Provisioning Pod Network Routes lab,
+# we've included the setup of the pod routes here as well since it's easy enough
+# to do.
+#
+# Note that the vpc cidr block is slightly different than what's used in the labs.
+# (10.2.0.0 insetad of 10.0.0.0).  This was done to fit in my aws environment.  Either
+# go find all of the 10.2.x.x references here and in prepare-files.sh and change them
+# or be sure to modify the commands given in the labs to use 10.2.x.x instead of 10.0.x.x.
+# (primarily in the Bootstrapping the Kubernetes Control PLan lab)
+#
+# Note also that we setup the security groups slightly differently than in the labs; 
+# we restrict public access to the nodes to only be allowed from the machine that
+# is being used to setup the cluster.  The IP address of that machine should be
+# set in terraform.tfvars as a /32 CIDR block.
+
+
 terraform {
   required_providers {
     aws = {
@@ -17,6 +38,8 @@ provider "aws" {
   }  
 }
 
+# Most of these should probably be locals instead of variables since there are some
+# places that we've hard-coded assumptions based on the default value
 variable "node_vpc_cidr_block" {
   default = "10.2.0.0/16"
   description = "This is the CIDR block for the VPC where the cluster will live"
