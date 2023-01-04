@@ -65,14 +65,24 @@ resource "aws_subnet" "node-subnet" {
 resource "aws_route_table" "node-routes" {
   vpc_id = aws_vpc.k8splay-vpc.id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.k8splay-gw.id
-  }
-
   tags = {
     Name = "node routes"
   }
+}
+
+resource "aws_route" "external" {
+  route_table_id         = aws_route_table.node-routes.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id = aws_internet_gateway.k8splay-gw.id
+}
+
+resource "aws_route" "worker-pods" {
+  # shouldnt we also include the controllers? Or are we making it so that
+  # pods cant run on controllers?
+  count = length(aws_instance.workers[*].private_ip)
+  destination_cidr_block = "10.200.${count.index}.0/24"
+  instance_id = aws_instance.workers[count.index].id
+  route_table_id         = aws_route_table.node-routes.id
 }
 
 resource "aws_route_table_association" "a" {
