@@ -5,7 +5,7 @@ set -euo pipefail
 function main () {
 
     generate_ca_cert
-	generate_simple_certs
+    generate_simple_certs
     generate_kubelet_certs
     generate_api_server_cert
     generate_kubeconfig_files
@@ -131,7 +131,7 @@ function generate_kubeconfig_file () {
 
   kubectl config set-context default \
     --cluster=kubernetes-the-hard-way \
-    --user="${USERPREFIX}{$NAME}" \
+    --user="${USERPREFIX}${NAME}" \
     --kubeconfig="${NAME}.kubeconfig"
 
   kubectl config use-context default --kubeconfig="${NAME}.kubeconfig"
